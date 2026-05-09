@@ -1,0 +1,36 @@
+{
+  "name": "Issiqxona Nexus",
+  "short_name": "Nexus",
+  "description": "Raspberry Pi asosidagi aqlli issiqxona monitoring va boshqaruv paneli.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#061014",
+  "background_color": "#061014",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bosh panel",
+      "short_name": "Panel",
+      "description": "Sensorlar va tizim holatini korish",
+      "url": "/",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Qurilmalar",
+      "short_name": "Qurilma",
+      "description": "Fan, nasos, chiroq va kamerani boshqarish",
+      "url": "/devices",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}
