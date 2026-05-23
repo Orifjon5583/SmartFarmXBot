@@ -22,12 +22,15 @@ class SensorService:
 
     def _setup_real_sensors(self):
         try:
-            import Adafruit_DHT
             import RPi.GPIO as GPIO
             import spidev
+            import adafruit_dht
+            import board
 
             sensor_name = Config.DHT_SENSOR.upper()
-            self.dht = Adafruit_DHT.DHT22 if sensor_name == "DHT22" else Adafruit_DHT.DHT11
+            pin_attr = f"D{Config.DHT_PIN}"
+            pin = getattr(board, pin_attr, board.D4)
+            self.dht = adafruit_dht.DHT22(pin) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin)
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.MQ2_DIGITAL_PIN, GPIO.IN)
@@ -108,14 +111,13 @@ class SensorService:
         }
 
     def _read_real_sensors(self):
-        import Adafruit_DHT
-        import Adafruit_DHT.common
-        
-        # Newer Raspberry Pi models (Pi 4/5) are not recognized by Adafruit_DHT.
-        # Force the platform to 3 (Raspberry Pi 3) to bypass the 'Unknown platform' error.
-        Adafruit_DHT.common.get_platform = lambda: 3
+        try:
+            humidity = self.dht.humidity
+            temperature = self.dht.temperature
+        except Exception:
+            humidity = None
+            temperature = None
 
-        humidity, temperature = Adafruit_DHT.read_retry(self.dht, Config.DHT_PIN)
         soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL)
         mq2_raw = self._read_adc(Config.MQ2_ADC_CHANNEL)
         light_digital = self.gpio.input(Config.LIGHT_DIGITAL_PIN) if self.gpio else Config.LIGHT_DARK_SIGNAL
