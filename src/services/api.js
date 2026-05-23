@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { historySeries, sensorSnapshot } from '../assets/greenhouseData';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-const USE_LOCAL_MOCKS = !import.meta.env.VITE_API_URL && import.meta.env.VITE_USE_MOCK_API !== 'false';
+export const REALTIME_ENABLED = true;
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,44 +20,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-async function withFallback(request, fallback) {
-  if (USE_LOCAL_MOCKS) {
-    return fallback;
-  }
-
-  try {
-    const response = await request();
-    return response.data;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.info('Using local greenhouse fallback data:', error.message);
-    }
-    return fallback;
-  }
-}
-
 export const greenhouseApi = {
-  getSensors: () => withFallback(() => api.get('/api/sensors'), sensorSnapshot),
-  getHistory: () => withFallback(() => api.get('/api/history'), historySeries),
-  getStatus: () =>
-    withFallback(() => api.get('/api/status'), {
-      raspberryPi: 'onlayn',
-      api: 'ulangan',
-      database: 'sinxron',
-      uptime: '18d 06h',
-    }),
-  getCamera: () =>
-    withFallback(() => api.get('/api/camera'), {
-      streamUrl: '/api/camera',
-      aiStatus: 'O‘simliklar sog‘lom',
-      confidence: 94,
-    }),
-  setDevice: (device, enabled, source = 'site') => {
-    if (USE_LOCAL_MOCKS) {
-      return Promise.resolve({ data: { ok: true, device, enabled, command: { device, enabled, source, changed: true } } });
-    }
-    return api.post(`/api/device/${device}`, { enabled, source });
-  },
+  getSensors: () => api.get('/api/sensors').then(res => res.data),
+  getHistory: () => api.get('/api/history').then(res => res.data),
+  getStatus: () => api.get('/api/status').then(res => res.data),
+  getCamera: () => api.get('/api/camera').then(res => res.data),
+  setDevice: (device, enabled, source = 'site') => api.post(`/api/device/${device}`, { enabled, source }),
 };
 
 export function createGreenhouseSocket() {
@@ -66,5 +33,8 @@ export function createGreenhouseSocket() {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
     autoConnect: false,
+    auth: (callback) => {
+      callback({ token: localStorage.getItem('greenhouse_token') || '' });
+    },
   });
 }

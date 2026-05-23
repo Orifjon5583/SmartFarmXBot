@@ -7,10 +7,12 @@ from backend.config import Config
 class DeviceController:
     def __init__(self):
         self.states = {
-            "drip": False,
-            "rain": False,
-            "cooler": False,
-            "led": False,
+            "drip_pump": False,
+            "rain_pump": False,
+            "photo_led": False,
+            "insect_led": False,
+            "cooler_1": False,
+            "cooler_2": False,
         }
         self.logs = []
         self.last_commands = {}
@@ -95,6 +97,42 @@ class DeviceController:
             self._insert_log(device, event, source)
             return self.snapshot(command)
 
+    def apply_external_state(self, states, source="mqtt"):
+        if not isinstance(states, dict):
+            return self.snapshot()
+
+        source = (source or "mqtt").strip().lower()
+        changed_devices = []
+
+        with self.lock:
+            for requested_device, enabled in states.items():
+                device = Config.GPIO_ALIASES.get(requested_device, requested_device)
+                if device not in self.states:
+                    continue
+
+                enabled = bool(enabled)
+                if self.states[device] == enabled:
+                    continue
+
+                self.states[device] = enabled
+                changed_devices.append(device)
+                self._insert_log(device, "tashqi holat", source)
+
+            if changed_devices:
+                command = {
+                    "device": ",".join(changed_devices),
+                    "requestedDevice": "external",
+                    "enabled": None,
+                    "source": source,
+                    "changed": True,
+                    "ignored": False,
+                    "message": "MQTT/manual/IR holati sinxronlandi.",
+                }
+                self._remember_command("external", command)
+                return self.snapshot(command)
+
+        return self.snapshot()
+
     def snapshot(self, command=None):
         return {
             "devices": dict(self.states),
@@ -107,10 +145,12 @@ class DeviceController:
 
     def gpio_status(self):
         labels = {
-            "drip": "Tomchilatib sug'orish relesi",
-            "rain": "Yomg'irlatib sug'orish relesi",
-            "cooler": "2 ta kuler umumiy relesi",
-            "led": "LED chiroq relesi",
+            "drip_pump": "Tomchilatib sug'orish nasosi",
+            "rain_pump": "Yomg'irlatib sug'orish nasosi",
+            "photo_led": "Fotosintez LED chiroq",
+            "insect_led": "Hashoratga qarshi LED",
+            "cooler_1": "Kuler 1",
+            "cooler_2": "Kuler 2",
         }
         return [
             {

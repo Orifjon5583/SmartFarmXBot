@@ -1,1 +1,5 @@
 Flask==3.1.2
+Flask-SocketIO==5.5.1
+psycopg[binary]==3.2.12
+simple-websocket==1.1.0
+paho-mqtt==2.1.0

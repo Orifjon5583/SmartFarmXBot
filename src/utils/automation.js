@@ -4,10 +4,12 @@ export function deriveAutomationState(sensors, thresholds = {}) {
   const lightLimit = thresholds.light ?? 420;
 
   return {
-    cooler: Number(sensors.temperature) > temperatureLimit,
-    drip: Number(sensors.soilMoisture) < moistureLimit,
-    rain: Number(sensors.soilMoisture) < moistureLimit - 12,
-    led: Number(sensors.light) < lightLimit,
+    cooler_1: Number(sensors.temperature) > temperatureLimit,
+    cooler_2: Number(sensors.temperature) > temperatureLimit + 1,
+    drip_pump: Number(sensors.soilMoisture) < moistureLimit,
+    rain_pump: Number(sensors.soilMoisture) < moistureLimit - 12,
+    photo_led: Number(sensors.light) < lightLimit,
+    insect_led: Number(sensors.light) < lightLimit && Number(sensors.gasLevel ?? 0) < 70,
   };
 }
 

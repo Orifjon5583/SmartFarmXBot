@@ -8,9 +8,9 @@ export default function CameraMonitoring() {
       <CameraFeed />
       <section className="grid gap-6 lg:grid-cols-3">
         {[
-          { title: 'Rasm olish', value: 'Tayyor', detail: 'Oxirgi kadr 2 daqiqa oldin saqlandi', icon: Download },
-          { title: 'Vaqt oralig‘i video', value: '24 soat', detail: '96 ta kadr mavjud', icon: CalendarClock },
-          { title: 'AI o‘simlik salomatligi', value: '94%', detail: 'Zararkunanda yoki stress belgisi yo‘q', icon: ScanSearch },
+          { title: 'Rasm olish', value: '--', detail: 'Hozircha faol emas', icon: Download },
+          { title: 'Vaqt oralig‘i video', value: '--', detail: 'Hozircha faol emas', icon: CalendarClock },
+          { title: 'AI o‘simlik salomatligi', value: '--', detail: 'Kamera kerak', icon: ScanSearch },
         ].map(({ title, value, detail, icon: Icon }) => (
           <div key={title} className="glass rounded-2xl p-5">
             <Icon className="mb-5 h-7 w-7 text-cyber-green" />

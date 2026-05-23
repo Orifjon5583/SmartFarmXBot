@@ -1,20 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { activityLogs, alerts, gpioPins, historySeries, sensorSnapshot } from '../assets/greenhouseData';
-import { greenhouseApi } from '../services/api';
+import { createGreenhouseSocket, greenhouseApi, REALTIME_ENABLED } from '../services/api';
 import { deriveAutomationState } from '../utils/automation';
 
 const GreenhouseContext = createContext(null);
 
 export function GreenhouseProvider({ children }) {
-  const [sensors, setSensors] = useState(sensorSnapshot);
-  const [history, setHistory] = useState(historySeries);
+  const [sensors, setSensors] = useState({});
+  const [history, setHistory] = useState([]);
   const [status, setStatus] = useState({});
   const [autoMode, setAutoMode] = useState(true);
   const [devices, setDevices] = useState({
-    drip: false,
-    rain: false,
-    cooler: true,
-    led: true,
+    drip_pump: false,
+    rain_pump: false,
+    photo_led: false,
+    insect_led: false,
+    cooler_1: false,
+    cooler_2: false,
   });
   const [thresholds, setThresholds] = useState({
     temperature: 30,
@@ -23,22 +24,78 @@ export function GreenhouseProvider({ children }) {
   });
 
   const refresh = useCallback(async () => {
-    const [sensorData, historyData, statusData] = await Promise.all([
-      greenhouseApi.getSensors(),
-      greenhouseApi.getHistory(),
-      greenhouseApi.getStatus(),
-    ]);
-    setSensors((current) => ({ ...current, ...sensorData }));
-    setHistory(Array.isArray(historyData) ? historyData : historySeries);
-    setStatus(statusData);
-    if (statusData?.devices) {
-      setDevices((current) => ({ ...current, ...statusData.devices }));
+    try {
+      const [sensorData, historyData, statusData] = await Promise.all([
+        greenhouseApi.getSensors(),
+        greenhouseApi.getHistory(),
+        greenhouseApi.getStatus(),
+      ]);
+      setSensors((current) => ({ ...current, ...sensorData }));
+      setHistory(Array.isArray(historyData) ? historyData : []);
+      setStatus(statusData);
+      if (statusData?.devices) {
+        setDevices((current) => ({ ...current, ...statusData.devices }));
+      }
+    } catch (error) {
+      console.error('Data refresh error:', error);
     }
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!REALTIME_ENABLED) return undefined;
+
+    const socket = createGreenhouseSocket();
+
+    const handleSensorUpdate = (sensorData) => {
+      setSensors((current) => ({ ...current, ...sensorData }));
+    };
+
+    const handleHistoryInit = (historyData) => {
+      if (Array.isArray(historyData) && historyData.length > 0) {
+        setHistory(historyData);
+      }
+    };
+
+    const handleHistoryAppend = (point) => {
+      if (!point) return;
+      setHistory((current) => [...current, point].slice(-96));
+    };
+
+    const handleDeviceUpdate = (snapshot) => {
+      if (snapshot?.devices) {
+        setDevices((current) => ({ ...current, ...snapshot.devices }));
+      }
+      setStatus((current) => ({ ...current, ...snapshot, websocket: 'ulangan' }));
+    };
+
+    const handleStatusUpdate = (statusData) => {
+      setStatus((current) => ({ ...current, ...statusData, websocket: 'ulangan' }));
+    };
+
+    socket.on('connect', () => {
+      setStatus((current) => ({ ...current, websocket: 'ulangan' }));
+    });
+    socket.on('disconnect', () => {
+      setStatus((current) => ({ ...current, websocket: 'uzilgan' }));
+    });
+    socket.on('connect_error', () => {
+      setStatus((current) => ({ ...current, websocket: 'auth xato' }));
+    });
+    socket.on('sensor:update', handleSensorUpdate);
+    socket.on('history:init', handleHistoryInit);
+    socket.on('history:append', handleHistoryAppend);
+    socket.on('device:update', handleDeviceUpdate);
+    socket.on('status:update', handleStatusUpdate);
+    socket.connect();
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!autoMode) return;
@@ -77,9 +134,9 @@ export function GreenhouseProvider({ children }) {
       sensors,
       history,
       status,
-      alerts,
-      activityLogs,
-      gpioPins: status.gpio || gpioPins,
+      alerts: status.alerts || [],
+      activityLogs: status.logs || [],
+      gpioPins: status.gpio || [],
       devices,
       autoMode,
       thresholds,

@@ -1,4 +1,4 @@
-import { Activity, Droplets, Gauge, Lightbulb, Thermometer, Waves } from 'lucide-react';
+import { Activity, Droplets, Flame, Gauge, Lightbulb, Thermometer, Waves } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AlertPanel from '../components/AlertPanel.jsx';
 import RealtimeChart from '../components/RealtimeChart.jsx';
@@ -13,19 +13,28 @@ export default function Dashboard() {
   const score = healthScore(sensors);
 
   const stats = [
-    { label: 'Avtomatika holati', value: `${score}%`, delta: 'Bugun +3.8%' },
-    { label: 'Pi ishlash vaqti', value: status.uptime || '18 kun 06 soat', delta: 'Uzilish yo‘q' },
-    { label: 'Energiya sarfi', value: '2.7 kWh', delta: 'Kecha bilan -8%' },
-    { label: 'Rele kechikishi', value: '32 ms', delta: 'GPIO barqaror' },
+    { label: 'Avtomatika holati', value: `${score}%`, delta: '' },
+    { label: 'Pi ishlash vaqti', value: status.uptime || '--', delta: '' },
+    { label: 'Energiya sarfi', value: '--', delta: '' },
+    { label: 'Rele kechikishi', value: '--', delta: '' },
   ];
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SensorCard title="Harorat" value={sensors.temperature} unit="°C" icon={Thermometer} color="text-cyber-red" trend="+1.2" detail="O‘rtacha ko‘rsatkich" />
-        <SensorCard title="Namlik" value={sensors.humidity} unit="%" icon={Droplets} color="text-cyber-blue" trend="+4%" detail="Havo namligi" />
-        <SensorCard title="Tuproq namligi" value={sensors.soilMoisture} unit="%" icon={Waves} color="text-cyber-green" trend="-2%" detail="Ildiz zonasi" />
-        <SensorCard title="Yorug‘lik" value={sensors.light} unit="lux" icon={Lightbulb} color="text-cyber-amber" trend="+12%" detail="PAR taxmini" />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SensorCard title="Harorat" value={sensors.temperature ?? '--'} unit="°C" icon={Thermometer} color="text-cyber-red" trend="" detail="O‘rtacha ko‘rsatkich" />
+        <SensorCard title="Namlik" value={sensors.humidity ?? '--'} unit="%" icon={Droplets} color="text-cyber-blue" trend="" detail="Havo namligi" />
+        <SensorCard title="Tuproq namligi" value={sensors.soilMoisture ?? '--'} unit="%" icon={Waves} color="text-cyber-green" trend="" detail="Ildiz zonasi" />
+        <SensorCard title="Yorug‘lik" value={sensors.light ?? '--'} unit="lux" icon={Lightbulb} color="text-cyber-amber" trend="" detail="PAR taxmini" />
+        <SensorCard
+          title="MQ2 gaz"
+          value={sensors.gasLevel ?? '--'}
+          unit="%"
+          icon={Flame}
+          color={sensors.gasDetected ? 'text-cyber-red' : 'text-cyber-amber'}
+          trend={sensors.gasDetected ? 'Xavf' : 'OK'}
+          detail={sensors.gasDetected ? 'Gaz/tutun aniqlandi' : 'Gaz darajasi normal'}
+        />
       </section>
 
       <StatisticsCards items={stats} />
@@ -33,7 +42,7 @@ export default function Dashboard() {
       <section className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
         <RealtimeChart data={history} dataKey="temperature" color="#38f2a1" label="Harorat tarixi" />
         <div className="space-y-6">
-          <WeatherWidget weather={sensors.weather} />
+          <WeatherWidget weather={sensors.weather || {}} />
           <div className="glass rounded-2xl p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-xl font-bold text-white">Qurilmalar holati</h2>
@@ -44,10 +53,12 @@ export default function Dashboard() {
                 <div key={device} className="flex items-center justify-between rounded-xl bg-white/[0.055] px-4 py-3">
                   <span className="capitalize text-slate-300">
                     {{
-                      drip: 'tomchilatib',
-                      rain: "yomg'irlatib",
-                      cooler: '2 ta kuler',
-                      led: 'LED chiroq',
+                      drip_pump: 'tomchilatib nasos',
+                      rain_pump: "yomg'irlatib nasos",
+                      photo_led: 'fotosintez LED',
+                      insect_led: 'hashorat LED',
+                      cooler_1: 'kuler 1',
+                      cooler_2: 'kuler 2',
                     }[device] || device}
                   </span>
                   <span className={`flex items-center gap-2 text-sm font-semibold ${enabled ? 'text-cyber-green' : 'text-slate-500'}`}>
@@ -69,17 +80,26 @@ export default function Dashboard() {
             <h2 className="font-display text-xl font-bold text-white">Tizim salomatligi</h2>
           </div>
           <div className="space-y-4">
-            {['Flask API', 'Socket oqimi', 'SQLite tarixi', 'GPIO relelari'].map((item, index) => (
-              <div key={item}>
-                <div className="mb-2 flex justify-between text-sm">
-                  <span className="text-slate-300">{item}</span>
-                  <span className="text-cyber-green">{96 - index * 3}%</span>
+            {['Flask API', 'Socket.IO oqimi', 'MQTT broker', 'PostgreSQL tarixi', 'GPIO relelari'].map((item) => {
+              let percentage = 0;
+              if (item === 'Flask API') percentage = status.api === 'ulangan' ? 100 : 0;
+              if (item === 'Socket.IO oqimi') percentage = status.websocket === 'ulangan' ? 100 : 0;
+              if (item === 'MQTT broker') percentage = status.mqtt && status.mqtt.includes('ulangan') ? 100 : 0;
+              if (item === 'PostgreSQL tarixi') percentage = status.database === 'ulangan' ? 100 : 0;
+              if (item === 'GPIO relelari') percentage = status.gpioAvailable ? 100 : 0;
+
+              return (
+                <div key={item}>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="text-slate-300">{item}</span>
+                    <span className="text-cyber-green">{percentage}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10">
+                    <div className="h-2 rounded-full bg-gradient-to-r from-cyber-green to-cyber-blue" style={{ width: `${percentage}%` }} />
+                  </div>
                 </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div className="h-2 rounded-full bg-gradient-to-r from-cyber-green to-cyber-blue" style={{ width: `${96 - index * 3}%` }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
