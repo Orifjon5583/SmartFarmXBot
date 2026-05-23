@@ -43,7 +43,12 @@ export default function Dashboard() {
               {Object.entries(devices).map(([device, enabled]) => (
                 <div key={device} className="flex items-center justify-between rounded-xl bg-white/[0.055] px-4 py-3">
                   <span className="capitalize text-slate-300">
-                    {{ fan: 'ventilyator', pump: 'nasos', light: 'chiroq', camera: 'kamera' }[device]}
+                    {{
+                      drip: 'tomchilatib',
+                      rain: "yomg'irlatib",
+                      cooler: '2 ta kuler',
+                      led: 'LED chiroq',
+                    }[device] || device}
                   </span>
                   <span className={`flex items-center gap-2 text-sm font-semibold ${enabled ? 'text-cyber-green' : 'text-slate-500'}`}>
                     <span className={`h-2 w-2 rounded-full ${enabled ? 'bg-cyber-green shadow-neon' : 'bg-slate-600'}`} />

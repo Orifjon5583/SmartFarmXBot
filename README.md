@@ -5,8 +5,7 @@ SmartFarmXBot - React va Flask asosidagi aqlli issiqxona IoT boshqaruv paneli.
 ## Asosiy imkoniyatlar
 
 - Raspberry Pi uchun sensor monitoring
-- Fan, suv nasosi, o'stirish chirog'i va kamera boshqaruvi
-- Telegram bot bildirishnomalari
+- Tomchilatib sug'orish, yomg'irlatib sug'orish, 2 ta kuler va LED chiroq boshqaruvi
 - PWA sifatida o'rnatish
 - Flask API backend
 - Dark glassmorphism admin dashboard
@@ -34,6 +33,9 @@ python -m pip install -r requirements-pi.txt
 ```
 
 Ulanish pinlari va `.env` sozlamalari [backend/README.md](backend/README.md) ichida yozilgan.
+
+sayt.uz domenidan subdomen chiqarib ishlatish bo'yicha yo'riqnoma:
+[deploy/README-saytuz.md](deploy/README-saytuz.md).
 
 Production build:
 

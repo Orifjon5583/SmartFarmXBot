@@ -53,54 +53,11 @@ export const greenhouseApi = {
       aiStatus: 'O‘simliklar sog‘lom',
       confidence: 94,
     }),
-  setDevice: (device, enabled) => {
+  setDevice: (device, enabled, source = 'site') => {
     if (USE_LOCAL_MOCKS) {
-      return Promise.resolve({ data: { ok: true, device, enabled } });
+      return Promise.resolve({ data: { ok: true, device, enabled, command: { device, enabled, source, changed: true } } });
     }
-    return api.post(`/api/device/${device}`, { enabled });
-  },
-  verifyTelegram: async (payload) => {
-    if (USE_LOCAL_MOCKS) {
-      return {
-        ok: true,
-        message: 'Telegram sozlamalari lokal tekshiruvdan otdi.',
-      };
-    }
-
-    try {
-      const response = await api.post('/api/telegram/test', payload);
-      return response.data;
-    } catch (error) {
-      const message = error.response?.data?.message || error.message;
-      throw new Error(message);
-    }
-  },
-  saveTelegramSettings: async (payload) => {
-    if (USE_LOCAL_MOCKS) {
-      return {
-        ok: true,
-        message: 'Telegram sozlamalari lokal saqlandi.',
-      };
-    }
-
-    const response = await api.post('/api/telegram/settings', payload);
-    return response.data;
-  },
-  sendTelegramNotification: async (text) => {
-    if (USE_LOCAL_MOCKS) {
-      return {
-        ok: true,
-        message: 'Lokal Telegram xabar yuborildi.',
-      };
-    }
-
-    try {
-      const response = await api.post('/api/telegram/notify', { text });
-      return response.data;
-    } catch (error) {
-      const message = error.response?.data?.message || error.message;
-      throw new Error(message);
-    }
+    return api.post(`/api/device/${device}`, { enabled, source });
   },
 };
 

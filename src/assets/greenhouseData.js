@@ -24,25 +24,25 @@ export const historySeries = Array.from({ length: 24 }, (_, index) => {
 });
 
 export const activityLogs = [
-  { time: '14:38', device: 'Ventilyator', event: 'Avto rejim yoqildi', value: 'Harorat 31.2C' },
-  { time: '13:50', device: 'Nasos', event: 'Sugorish sikli tugadi', value: '18 soniya' },
-  { time: '12:24', device: 'Chiroq', event: 'Yoritish darajasi sozlandi', value: '72%' },
-  { time: '09:12', device: 'Kamera', event: 'Rasm saqlandi', value: 'Soglom' },
+  { time: '14:38', device: '2 ta kuler', event: 'Avto rejim yoqildi', value: 'Harorat 31.2C' },
+  { time: '13:50', device: "Tomchilatib sug'orish", event: 'Sugorish sikli tugadi', value: '18 soniya' },
+  { time: '12:24', device: 'LED chiroq', event: 'Yoritish darajasi sozlandi', value: '72%' },
+  { time: '09:12', device: "Yomg'irlatib sug'orish", event: "Qo'l rejimida o'chirildi", value: 'OFF' },
 ];
 
 export const gpioPins = [
-  { pin: 4, label: 'Ventilyator relesi', active: true },
-  { pin: 17, label: 'Nasos relesi', active: false },
-  { pin: 22, label: 'O‘stirish chirog‘i', active: true },
-  { pin: 27, label: 'Kamera', active: true },
-  { pin: 5, label: 'DHT22', active: true },
-  { pin: 6, label: 'Tuproq ADC', active: true },
-  { pin: 13, label: 'LDR', active: true },
-  { pin: 19, label: 'Zaxira', active: false },
+  { pin: 17, label: "Tomchilatib sug'orish relesi", active: false },
+  { pin: 27, label: "Yomg'irlatib sug'orish relesi", active: false },
+  { pin: 22, label: '2 ta kuler umumiy relesi', active: true },
+  { pin: 5, label: 'LED chiroq relesi', active: true },
+  { pin: 4, label: 'DHT22 DATA', active: true },
+  { pin: 23, label: 'Fotorezistor digital', active: true },
+  { pin: 18, label: 'IR receiver', active: true },
+  { pin: 8, label: 'MCP3008 CE0', active: true },
 ];
 
 export const alerts = [
   { id: 1, type: 'warning', title: 'Tuproq namligi chegaraga yaqin', detail: 'B zonada namlik 35 daqiqadan beri pasaymoqda.' },
-  { id: 2, type: 'info', title: 'Avtomatika barqaror', detail: 'Ventilyator va yoritish qoidalari normal ishlayapti.' },
-  { id: 3, type: 'success', title: 'O‘simlik salomatligi tekshirildi', detail: 'Oxirgi kadrda xloroz belgilari aniqlanmadi.' },
+  { id: 2, type: 'info', title: 'Avtomatika barqaror', detail: 'Kulerlar va yoritish qoidalari normal ishlayapti.' },
+  { id: 3, type: 'success', title: "O'simlik salomatligi tekshirildi", detail: 'Oxirgi kadrda xloroz belgilari aniqlanmadi.' },
 ];

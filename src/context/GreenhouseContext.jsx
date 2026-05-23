@@ -11,10 +11,10 @@ export function GreenhouseProvider({ children }) {
   const [status, setStatus] = useState({});
   const [autoMode, setAutoMode] = useState(true);
   const [devices, setDevices] = useState({
-    fan: true,
-    pump: false,
-    light: true,
-    camera: true,
+    drip: false,
+    rain: false,
+    cooler: true,
+    led: true,
   });
   const [thresholds, setThresholds] = useState({
     temperature: 30,
@@ -31,6 +31,9 @@ export function GreenhouseProvider({ children }) {
     setSensors((current) => ({ ...current, ...sensorData }));
     setHistory(Array.isArray(historyData) ? historyData : historySeries);
     setStatus(statusData);
+    if (statusData?.devices) {
+      setDevices((current) => ({ ...current, ...statusData.devices }));
+    }
   }, []);
 
   useEffect(() => {
@@ -39,18 +42,33 @@ export function GreenhouseProvider({ children }) {
 
   useEffect(() => {
     if (!autoMode) return;
-    setDevices((current) => ({
-      ...current,
-      ...deriveAutomationState(sensors, thresholds),
-    }));
-  }, [autoMode, sensors, thresholds]);
+    const nextAutomation = deriveAutomationState(sensors, thresholds);
+    const changed = Object.entries(nextAutomation).filter(([device, enabled]) => devices[device] !== enabled);
+
+    if (changed.length === 0) return;
+
+    setDevices((current) => ({ ...current, ...nextAutomation }));
+
+    changed.forEach(([device, enabled]) => {
+      greenhouseApi.setDevice(device, enabled, 'auto').then((response) => {
+        if (response.data?.devices) {
+          setDevices((current) => ({ ...current, ...response.data.devices }));
+        }
+      }).catch((error) => {
+        console.info(`${device} avtomatika buyrug'i backendga yetmadi:`, error.message);
+      });
+    });
+  }, [autoMode, devices, sensors, thresholds]);
 
   const setDevice = async (device, enabled) => {
     setDevices((current) => ({ ...current, [device]: enabled }));
     try {
-      await greenhouseApi.setDevice(device, enabled);
+      const response = await greenhouseApi.setDevice(device, enabled, 'site');
+      if (response.data?.devices) {
+        setDevices((current) => ({ ...current, ...response.data.devices }));
+      }
     } catch (error) {
-      console.info(`${device} qurilmasi lokal navbatga qo‘yildi:`, error.message);
+      console.info(`${device} qurilmasi lokal navbatga qo'yildi:`, error.message);
     }
   };
 
@@ -61,7 +79,7 @@ export function GreenhouseProvider({ children }) {
       status,
       alerts,
       activityLogs,
-      gpioPins,
+      gpioPins: status.gpio || gpioPins,
       devices,
       autoMode,
       thresholds,

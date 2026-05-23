@@ -12,6 +12,7 @@ class SensorService:
         self.real_sensors_available = False
         self.dht = None
         self.spi = None
+        self.gpio = None
 
         if Config.USE_REAL_SENSORS:
             self._setup_real_sensors()
@@ -19,10 +20,14 @@ class SensorService:
     def _setup_real_sensors(self):
         try:
             import Adafruit_DHT
+            import RPi.GPIO as GPIO
             import spidev
 
             sensor_name = Config.DHT_SENSOR.upper()
             self.dht = Adafruit_DHT.DHT22 if sensor_name == "DHT22" else Adafruit_DHT.DHT11
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
+            self.gpio = GPIO
             self.spi = spidev.SpiDev()
             self.spi.open(0, 0)
             self.spi.max_speed_hz = 1350000
@@ -61,13 +66,16 @@ class SensorService:
 
         humidity, temperature = Adafruit_DHT.read_retry(self.dht, Config.DHT_PIN)
         soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL)
-        light_raw = self._read_adc(Config.LIGHT_ADC_CHANNEL)
+        light_digital = self.gpio.input(Config.LIGHT_DIGITAL_PIN) if self.gpio else Config.LIGHT_DARK_SIGNAL
+        is_dark = int(light_digital) == Config.LIGHT_DARK_SIGNAL
 
         return {
             "temperature": round(temperature, 1) if temperature is not None else None,
             "humidity": round(humidity) if humidity is not None else None,
             "soilMoisture": self._soil_percent(soil_raw),
-            "light": self._light_lux_estimate(light_raw),
+            "light": 80 if is_dark else 850,
+            "lightDigital": int(light_digital),
+            "isDark": is_dark,
             "weather": {
                 "condition": "Real sensor rejimi",
                 "outsideTemp": round(temperature, 1) if temperature is not None else None,

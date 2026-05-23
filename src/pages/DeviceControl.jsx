@@ -1,4 +1,4 @@
-import { Camera, Fan, Lightbulb, Power, RadioTower, Waves } from 'lucide-react';
+import { CloudRain, Droplets, Fan, Lightbulb, Power, RadioTower } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DeviceSwitch from '../components/DeviceSwitch.jsx';
 import { useGreenhouse } from '../context/GreenhouseContext.jsx';
@@ -7,10 +7,10 @@ export default function DeviceControl() {
   const { devices, setDevice, autoMode, setAutoMode, gpioPins } = useGreenhouse();
 
   const controls = [
-    { key: 'fan', label: 'Ventilyator', description: 'Haroratni chiqarish uchun GPIO relesi', icon: Fan },
-    { key: 'pump', label: 'Suv nasosi', description: 'Impulsli sug‘orish nasosi boshqaruvi', icon: Waves },
-    { key: 'light', label: 'O‘stirish chirog‘i', description: 'LED spektrli yoritish tizimi', icon: Lightbulb },
-    { key: 'camera', label: 'Kamera moduli', description: 'CSI/USB monitoring oqimi', icon: Camera },
+    { key: 'drip', label: "Tomchilatib sug'orish", description: "Tuproq namligi past bo'lsa ishlaydigan rele", icon: Droplets },
+    { key: 'rain', label: "Yomg'irlatib sug'orish", description: "Kuchli sug'orish uchun alohida rele", icon: CloudRain },
+    { key: 'cooler', label: '2 ta kuler', description: 'Ikkala kuler bitta relay orqali birga yoqiladi', icon: Fan },
+    { key: 'led', label: 'LED chiroq', description: "Fotorezistor qorong'ilikni aniqlasa yonadi", icon: Lightbulb },
   ];
 
   return (
@@ -28,7 +28,7 @@ export default function DeviceControl() {
             }`}
           >
             <Power className="h-5 w-5" />
-            {autoMode ? 'Avto rejim' : 'Qo‘l rejimi'}
+            {autoMode ? 'Avto rejim' : "Qo'l rejimi"}
           </button>
         </div>
         <div className="space-y-4">
@@ -39,7 +39,7 @@ export default function DeviceControl() {
               description={control.description}
               icon={control.icon}
               enabled={devices[control.key]}
-              disabled={autoMode && control.key !== 'camera'}
+              disabled={false}
               onChange={(enabled) => setDevice(control.key, enabled)}
             />
           ))}
@@ -59,7 +59,7 @@ export default function DeviceControl() {
                 <span className={`h-2.5 w-2.5 rounded-full ${pin.active ? 'bg-cyber-green shadow-neon' : 'bg-slate-600'}`} />
               </div>
               <p className="mt-3 text-sm font-semibold text-white">{pin.label}</p>
-              <p className="mt-1 text-xs text-slate-500">{pin.active ? 'Signal yuqori' : 'Signal past'}</p>
+              <p className="mt-1 text-xs text-slate-500">{pin.active ? 'Rele yoqilgan' : "Rele o'chirilgan"}</p>
             </div>
           ))}
         </div>

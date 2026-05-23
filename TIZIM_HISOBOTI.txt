@@ -1,0 +1,27 @@
+Aqlli issiqxona IoT tizimi haqida umumiy hisobot
+
+Bu loyiha aqlli issiqxona uchun yaratilgan IoT boshqaruv tizimi hisoblanadi. Tizimning asosiy vazifasi issiqxona ichidagi sensorlardan ma'lumot olish, bu ma'lumotlarni sayt orqali ko'rsatish, hamda Raspberry Pi orqali relelarga ulangan qurilmalarni boshqarishdan iborat.
+
+Sayt React va Vite asosida ishlaydi. Foydalanuvchi saytga kirganda harorat, havo namligi, tuproq namligi, yorug'lik darajasi, qurilmalar holati va GPIO pinlar holatini ko'radi. Saytda qurilmalarni qo'lda yoqib-o'chirish, avtomatik rejimni boshqarish va Raspberry Pi ulanish ma'lumotlarini saqlash imkoniyati mavjud.
+
+Backend Flask asosida yozilgan. Backend sayt bilan Raspberry Pi orasida vositachi bo'lib ishlaydi. Sayt backendga API so'rov yuboradi, backend esa Raspberry Pi GPIO pinlari orqali relelarni boshqaradi. Sensorlardan kelgan ma'lumotlar ham backend orqali saytga uzatiladi.
+
+Tizimdagi asosiy ma'lumot oqimi quyidagicha ishlaydi. DHT22, tuproq namligi sensori va fotorezistor Raspberry Pi ga ulanadi. Raspberry Pi ichidagi Flask backend bu sensorlardan ma'lumot oladi. Sayt GET /api/sensors so'rovi orqali shu ma'lumotlarni olib dashboardda ko'rsatadi. Qurilmani yoqish yoki o'chirish kerak bo'lsa, sayt POST /api/device/<device> so'rovini yuboradi. Backend bu so'rovni qabul qilib, kerakli GPIO pinni o'zgartiradi va rele orqali qurilmani yoqadi yoki o'chiradi.
+
+Hozir tizim tomchilatib sug'orish, yomg'irlatib sug'orish, bitta relayga ulangan 2 ta kuler va LED chiroqni boshqaradi. Tomchilatib sug'orish API nomi drip, yomg'irlatib sug'orish API nomi rain, 2 ta kulerning umumiy relay API nomi cooler, LED chiroq esa led deb yuritiladi. Eski nomlar uchun ham moslik qoldirilgan: pump drip sifatida, fan cooler sifatida, cooler1, cooler2 va cooler3 ham cooler sifatida, light esa led sifatida ishlaydi.
+
+Raspberry Pi pinlari quyidagicha belgilangan. Tomchilatib sug'orish GPIO17 ga ulanadi, bu fizik pin 11. Yomg'irlatib sug'orish GPIO27 ga ulanadi, bu fizik pin 13. 2 ta kuler bitta relayga ulanadi va bu relay GPIO22 orqali boshqariladi, bu fizik pin 15. LED chiroq GPIO5 ga ulanadi, bu fizik pin 29. DHT22 DATA GPIO4 ga ulanadi, bu fizik pin 7. Fotorezistor digital chiqishi GPIO23 ga ulanadi, bu fizik pin 16. IR receiver uchun GPIO18 ajratilgan, bu fizik pin 12.
+
+Relay moduli Arduino kodidagi kabi active-low logika bilan ishlaydi. Ya'ni qurilmani yoqish uchun GPIO LOW bo'ladi, o'chirish uchun GPIO HIGH bo'ladi. Buning uchun .env faylida GPIO_ACTIVE_LOW=true qilib qo'yilgan.
+
+Saytdan boshqarish va qo'lda boshqarish bir-biriga xalaqit bermasligi uchun backendda maxsus himoya bor. Agar qurilma allaqachon yoniq bo'lsa va yana yoqish buyrug'i kelsa, backend GPIO pinni qayta yozmaydi. Javobda changed=false qaytariladi. Bu relayni ortiqcha ishlashdan saqlaydi. Agar saytdan yoki qo'lda boshqaruvdan buyruq kelsa, MANUAL_OVERRIDE_SECONDS qiymati bo'yicha auto rejim ma'lum vaqt davomida qarama-qarshi buyruq bilan uni bosib ketmaydi. Hozir bu vaqt 120 sekund qilib qo'yilgan. Bir vaqtda ikki tomondan so'rov kelib qolsa, backend ichidagi lock ularni navbat bilan bajaradi.
+
+Avtomatik rejim sensor qiymatlariga qarab qaror qiladi. Harorat belgilangan chegaradan oshsa cooler relay yoqiladi va unga ulangan 2 ta kuler birdaniga ishlaydi. Tuproq namligi past bo'lsa tomchilatib sug'orish yoqiladi. Tuproq namligi juda past bo'lsa yomg'irlatib sug'orish yoqiladi. Yorug'lik past bo'lsa LED chiroq yoqiladi.
+
+Saytdagi qurilmalarni boshqarish sahifasida tomchilatib sug'orish, yomg'irlatib sug'orish, 2 ta kuler uchun umumiy tugma va LED chiroq uchun tugma mavjud. Kuler tugmasi bosilganda bitta relay ishlaydi va ikkala kuler birdaniga yoqiladi yoki o'chadi. Avto rejim yoniq bo'lsa ham sayt tugmasi ishlaydi, backend esa buni sayt yoki qo'l boshqaruvi sifatida qabul qilib, vaqtincha auto rejimdan ustun qo'yadi.
+
+Sayt va backend domen bilan ishlatilganda odatda ikki subdomen ajratiladi. Masalan app.domen.uz React sayt uchun, api.domen.uz esa Flask backend uchun ishlatiladi. Frontend .env faylida VITE_API_URL=https://api.domen.uz deb yoziladi. Lokal ishlaganda VITE_API_URL=http://127.0.0.1:5000 bo'ladi.
+
+Asosiy kod fayllari quyidagilar. Frontend API so'rovlari src/services/api.js faylida. Avtomatika qoidalari src/utils/automation.js faylida. Qurilmalarni boshqarish sahifasi src/pages/DeviceControl.jsx faylida. Sozlamalar sahifasi src/pages/Settings.jsx faylida. Backend API endpointlari backend/app.py faylida. GPIO pinlar va konfiguratsiya backend/config.py faylida. Relay boshqaruv logikasi backend/services/devices.py faylida. Sensorlarni o'qish logikasi backend/services/sensors.py faylida joylashgan.
+
+Umuman olganda, bu tizim sayt, backend va Raspberry Pi dan tashkil topgan aqlli issiqxona boshqaruv panelidir. Sensorlar issiqxona holatini o'lchaydi, backend bu ma'lumotlarni oladi, sayt ularni foydalanuvchiga ko'rsatadi, foydalanuvchi yoki avtomatika esa relelar orqali sug'orish, kulerlar va chiroqni boshqaradi.
