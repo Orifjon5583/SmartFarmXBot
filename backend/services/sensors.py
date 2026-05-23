@@ -1,5 +1,4 @@
 import math
-import random
 from datetime import datetime, timedelta, timezone
 
 from backend.config import Config
@@ -9,7 +8,7 @@ from backend.services.history import HistoryStore
 class SensorService:
     def __init__(self, history_store=None):
         self.started_at = datetime.now()
-        self.history = self._seed_history()
+        self.history = []
         self.history_store = history_store or HistoryStore()
         self.external_snapshot = None
         self.external_updated_at = None
@@ -47,7 +46,7 @@ class SensorService:
         if self.real_sensors_available:
             return self._read_real_sensors()
 
-        return self._mock_current()
+        return self._empty_current()
 
     def update_external_snapshot(self, payload):
         if not isinstance(payload, dict):
@@ -92,26 +91,19 @@ class SensorService:
         self.history = self.history[-Config.HISTORY_QUERY_LIMIT :]
         return latest, point
 
-    def _mock_current(self):
-        minute = datetime.now().minute
-        temperature = round(26.2 + math.sin(minute / 8) * 2.4 + random.uniform(-0.25, 0.25), 1)
-        humidity = round(66 + math.cos(minute / 10) * 7 + random.uniform(-1.2, 1.2))
-        soil = round(48 + math.sin(minute / 12) * 6 + random.uniform(-1.4, 1.4))
-        light = round(650 + math.sin(minute / 9) * 180 + random.uniform(-24, 24))
-        gas_level = round(18 + math.sin(minute / 11) * 8 + random.uniform(-1.2, 1.2))
-
+    def _empty_current(self):
         return {
-            "temperature": temperature,
-            "humidity": humidity,
-            "soilMoisture": soil,
-            "light": max(80, light),
-            "gasLevel": max(0, min(100, gas_level)),
-            "gasDetected": gas_level > 55,
+            "temperature": None,
+            "humidity": None,
+            "soilMoisture": None,
+            "light": None,
+            "gasLevel": None,
+            "gasDetected": False,
             "weather": {
-                "condition": "Ochiq va barqaror ob-havo",
-                "outsideTemp": 22,
-                "wind": 8,
-                "uv": 5,
+                "condition": "--",
+                "outsideTemp": "--",
+                "wind": "--",
+                "uv": "--",
             },
         }
 
@@ -182,7 +174,6 @@ class SensorService:
         if database_history:
             return database_history
 
-        self.record_current()
         limit = min(max(int(limit or 24), 1), Config.HISTORY_QUERY_LIMIT)
         return self.history[-int(limit) :]
 
@@ -195,28 +186,10 @@ class SensorService:
             "api": "ulangan",
             "database": self.history_store.status(),
             "uptime": f"{hours} soat {minutes} daqiqa",
-            "sensorMode": "real" if self.real_sensors_available else "mock",
-            "telemetrySource": "mqtt" if self.external_snapshot is not None else "local",
+            "sensorMode": "real" if self.real_sensors_available else "kutish",
+            "telemetrySource": "mqtt" if self.external_snapshot is not None else "hech narsa",
             "telemetryUpdatedAt": self.external_updated_at.isoformat(timespec="seconds")
             if self.external_updated_at
             else None,
             **device_snapshot,
         }
-
-    @staticmethod
-    def _seed_history():
-        now = datetime.now().replace(minute=0, second=0, microsecond=0)
-        points = []
-        for index in range(24):
-            stamp = now - timedelta(hours=23 - index)
-            points.append(
-                {
-                    "time": stamp.strftime("%H:%M"),
-                    "temperature": round(23 + math.sin(index / 3) * 3 + index * 0.11, 1),
-                    "humidity": round(62 + math.cos(index / 4) * 8),
-                    "soil": round(52 - index * 0.42 + math.sin(index / 2) * 4),
-                    "light": max(110, round(420 + math.sin((index - 6) / 5) * 360)),
-                    "energy": round(1.8 + math.sin(index / 4) * 0.5 + index * 0.045, 2),
-                }
-            )
-        return points
