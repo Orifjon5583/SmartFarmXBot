@@ -71,6 +71,14 @@ def publish_telemetry(client):
     sensors = sensor_service.current()
     devices = device_controller.snapshot()["devices"]
     lcd.update(sensors, devices)
+    
+    temp = sensors.get("temperature")
+    hum = sensors.get("humidity")
+    if temp is None or hum is None:
+        print(f"[{now_iso()}] ⚠️ DIQQAT: Datchikdan signal yo'q! (Simlarni yoki DHT turini tekshiring)")
+    else:
+        print(f"[{now_iso()}] ✅ YUBORILDI -> Harorat: {temp}°C, Namlik: {hum}%")
+        
     payload = {
         **sensors,
         "devices": devices,
