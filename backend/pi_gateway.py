@@ -24,9 +24,9 @@ try:
     pin = getattr(board, pin_attr, board.D4)
     sensor_name = Config.DHT_SENSOR.upper()
     if sensor_name == "DHT22":
-        dht_sensor = adafruit_dht.DHT22(pin)
+        dht_sensor = adafruit_dht.DHT22(pin, use_pulseio=False)
     else:
-        dht_sensor = adafruit_dht.DHT11(pin)
+        dht_sensor = adafruit_dht.DHT11(pin, use_pulseio=False)
     print(f"✅ DHT datchik sozlandi: {sensor_name}, pin: GPIO{Config.DHT_PIN}")
 except Exception as e:
     print(f"⚠️ DHT datchikni sozlab bo'lmadi: {e}")
