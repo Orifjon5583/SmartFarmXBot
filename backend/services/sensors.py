@@ -30,7 +30,10 @@ class SensorService:
             sensor_name = Config.DHT_SENSOR.upper()
             pin_attr = f"D{Config.DHT_PIN}"
             pin = getattr(board, pin_attr, board.D4)
-            self.dht = adafruit_dht.DHT22(pin, use_pulseio=False) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin, use_pulseio=False)
+            if sensor_name == "DHT22":
+                self.dht = adafruit_dht.DHT22(pin, use_pulseio=False)
+            else:
+                self.dht = adafruit_dht.DHT11(pin, use_pulseio=False)
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.MQ2_DIGITAL_PIN, GPIO.IN)
