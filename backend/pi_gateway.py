@@ -1,4 +1,5 @@
 import json
+import os
 import signal
 import time
 from datetime import datetime, timezone
@@ -20,17 +21,18 @@ ir_reader = IrEventReader()
 lcd = Lcd16x2()
 running = True
 
-# LED strip direct control
-led_strip_gpio = None
+# LED strip direct control (WS2812B NeoPixel)
+led_strip = None
 led_strip_state = False
 if Config.LED_STRIP_ENABLED:
     try:
-        import RPi.GPIO as _GPIO
-        _GPIO.setmode(_GPIO.BCM)
-        _GPIO.setup(Config.LED_STRIP_PIN, _GPIO.OUT)
-        _GPIO.output(Config.LED_STRIP_PIN, _GPIO.LOW)
-        led_strip_gpio = _GPIO
-        print(f"✅ LED strip sozlandi: GPIO{Config.LED_STRIP_PIN}")
+        from rpi_ws281x import PixelStrip, Color
+        LED_COUNT = int(os.getenv("LED_COUNT", "13"))
+        LED_PIN = Config.LED_STRIP_PIN
+        LED_BRIGHTNESS = int(os.getenv("LED_BRIGHTNESS", "150"))
+        led_strip = PixelStrip(LED_COUNT, LED_PIN, 800000, 10, False, LED_BRIGHTNESS)
+        led_strip.begin()
+        print(f"✅ LED strip sozlandi: GPIO{LED_PIN}, {LED_COUNT} ta LED")
     except Exception as e:
         print(f"⚠️ LED strip xato: {e}")
 
@@ -186,20 +188,28 @@ def handle_ir(client):
 
 
 def update_led_strip(sensors):
-    """Turn LED strip ON when dark, OFF when light."""
+    """Turn LED strip ON (white) when dark, OFF when light."""
     global led_strip_state
 
-    if not led_strip_gpio or not Config.LED_STRIP_ENABLED:
+    if not led_strip or not Config.LED_STRIP_ENABLED:
         return
 
     is_dark = sensors.get("isDark", False)
 
     if is_dark and not led_strip_state:
-        led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.HIGH)
+        # Turn ON - white color
+        from rpi_ws281x import Color
+        for i in range(led_strip.numPixels()):
+            led_strip.setPixelColor(i, Color(255, 255, 255))
+        led_strip.show()
         led_strip_state = True
         print(f"[{now_iso()}] 💡 LED yoqildi (qorong'i)")
     elif not is_dark and led_strip_state:
-        led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.LOW)
+        # Turn OFF
+        from rpi_ws281x import Color
+        for i in range(led_strip.numPixels()):
+            led_strip.setPixelColor(i, Color(0, 0, 0))
+        led_strip.show()
         led_strip_state = False
         print(f"[{now_iso()}] 🌙 LED o'chirildi (yorug')")
 
@@ -259,8 +269,11 @@ def main():
             publish_telemetry(client)
             time.sleep(Config.SENSOR_BROADCAST_SECONDS)
     finally:
-        if led_strip_gpio:
-            led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.LOW)
+        if led_strip:
+            from rpi_ws281x import Color
+            for i in range(led_strip.numPixels()):
+                led_strip.setPixelColor(i, Color(0, 0, 0))
+            led_strip.show()
         client.publish(f"{base_topic()}/availability", "offline", qos=1, retain=True)
         client.loop_stop()
         client.disconnect()
