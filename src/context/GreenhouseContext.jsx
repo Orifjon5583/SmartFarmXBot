@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { createGreenhouseSocket, greenhouseApi, REALTIME_ENABLED } from '../services/api';
-import { deriveAutomationState } from '../utils/automation';
 
 const GreenhouseContext = createContext(null);
 
@@ -97,25 +96,8 @@ export function GreenhouseProvider({ children }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!autoMode) return;
-    const nextAutomation = deriveAutomationState(sensors, thresholds);
-    const changed = Object.entries(nextAutomation).filter(([device, enabled]) => devices[device] !== enabled);
-
-    if (changed.length === 0) return;
-
-    setDevices((current) => ({ ...current, ...nextAutomation }));
-
-    changed.forEach(([device, enabled]) => {
-      greenhouseApi.setDevice(device, enabled, 'auto').then((response) => {
-        if (response.data?.devices) {
-          setDevices((current) => ({ ...current, ...response.data.devices }));
-        }
-      }).catch((error) => {
-        console.info(`${device} avtomatika buyrug'i backendga yetmadi:`, error.message);
-      });
-    });
-  }, [autoMode, devices, sensors, thresholds]);
+  // Frontend automation disabled - control only via site buttons
+  // Backend PI_AUTOMATION_ENABLED controls auto mode if needed
 
   const setDevice = async (device, enabled) => {
     setDevices((current) => ({ ...current, [device]: enabled }));
