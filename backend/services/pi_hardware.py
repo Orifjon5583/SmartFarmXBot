@@ -114,10 +114,37 @@ class Lcd16x2:
         if not self.available:
             return
 
-        line_1 = f"T:{sensors.get('temperature', '--')}C H:{sensors.get('humidity', '--')}%"
+        # Carousel: rotate between pages every 3 cycles (15 sec with 5s interval)
+        if not hasattr(self, '_page'):
+            self._page = 0
+            self._cycle = 0
+
+        self._cycle += 1
+        if self._cycle >= 3:
+            self._cycle = 0
+            self._page = (self._page + 1) % 4
+
+        temp = sensors.get('temperature', '--')
+        hum = sensors.get('humidity', '--')
+        soil = sensors.get('soilMoisture', '--')
+        light = sensors.get('light', '--')
+        gas = sensors.get('gasLevel', 0)
+        gas_det = sensors.get('gasDetected', False)
         active_count = sum(1 for enabled in devices.values() if enabled)
-        gas = "GAS!" if sensors.get("gasDetected") else f"G:{sensors.get('gasLevel', 0)}%"
-        line_2 = f"S:{sensors.get('soilMoisture', '--')}% {gas} R:{active_count}"
+
+        if self._page == 0:
+            line_1 = f"Harorat: {temp}C"
+            line_2 = f"Namlik:  {hum}%"
+        elif self._page == 1:
+            line_1 = f"Tuproq: {soil}%"
+            line_2 = f"Yorug: {light} lux"
+        elif self._page == 2:
+            line_1 = f"Gaz: {gas}%"
+            line_2 = "XAVF!" if gas_det else "Normal holat"
+        else:
+            line_1 = f"Relay: {active_count} ta ON"
+            line_2 = "SmartFarm v1.0"
+
         text = (line_1[:16], line_2[:16])
 
         if text == self.last_text:
