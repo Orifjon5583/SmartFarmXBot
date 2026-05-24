@@ -1,10 +1,3 @@
-"""
-SmartFarm Pi Gateway — Raspberry Pi dan serverga ma'lumot yuboruvchi skript.
-
-DHT datchigini TO'G'RIDAN-TO'G'RI o'qiydi (adafruit_dht kutubxonasi orqali),
-SensorService ishlatilMAYDI. Bu usul 100% ishlaydi.
-"""
-
 import json
 import signal
 import time
@@ -13,43 +6,17 @@ from datetime import datetime, timezone
 import paho.mqtt.client as mqtt
 
 from backend.config import Config
+from backend.services.devices import DeviceController
+from backend.services.pi_hardware import IrEventReader, Lcd16x2, ManualSwitchReader
+from backend.services.sensors import SensorService
 
-# ---------- DHT datchikni sozlash (xuddi do'stingiz yozgandek) ----------
-dht_sensor = None
-try:
-    import adafruit_dht
-    import board
 
-    pin_attr = f"D{Config.DHT_PIN}"
-    pin = getattr(board, pin_attr, board.D4)
-    sensor_name = Config.DHT_SENSOR.upper()
-    if sensor_name == "DHT22":
-        dht_sensor = adafruit_dht.DHT22(pin, use_pulseio=False)
-    else:
-        dht_sensor = adafruit_dht.DHT11(pin, use_pulseio=False)
-    print(f"✅ DHT datchik sozlandi: {sensor_name}, pin: GPIO{Config.DHT_PIN}")
-except Exception as e:
-    print(f"⚠️ DHT datchikni sozlab bo'lmadi: {e}")
-
-# ---------- GPIO (rele) ni sozlash ----------
-device_controller = None
-try:
-    from backend.services.devices import DeviceController
-    device_controller = DeviceController()
-except Exception:
-    pass
-
+device_controller = DeviceController()
+sensor_service = SensorService()
+manual_switches = ManualSwitchReader()
+ir_reader = IrEventReader()
+lcd = Lcd16x2()
 running = True
-
-
-def get_devices():
-    if device_controller:
-        return device_controller.snapshot()["devices"]
-    return {
-        "drip_pump": False, "rain_pump": False,
-        "photo_led": False, "insect_led": False,
-        "cooler_1": False, "cooler_2": False,
-    }
 
 
 def base_topic():
@@ -60,121 +27,151 @@ def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def read_dht():
-    """DHT datchikdan harorat va namlikni o'qiydi. Xato bo'lsa None qaytaradi."""
-    if dht_sensor is None:
-        return None, None
-    try:
-        temperature = dht_sensor.temperature
-        humidity = dht_sensor.humidity
-        return temperature, humidity
-    except Exception:
-        return None, None
-
-
-# ---------- MQTT callbacks ----------
 def on_connect(client, _userdata, _flags, reason_code, _properties=None):
     connected = str(reason_code) == "Success" or str(reason_code) == "0"
     if not connected:
-        print(f"❌ MQTT connect xato: {reason_code}")
+        print(f"MQTT connect xato: {reason_code}")
         return
 
-    print(f"✅ MQTT serverga ulandi: {Config.MQTT_HOST}:{Config.MQTT_PORT}")
     client.subscribe(f"{base_topic()}/command", qos=1)
     client.publish(f"{base_topic()}/availability", "online", qos=1, retain=True)
+    publish_state(client, "boot")
 
 
 def on_message(client, _userdata, message):
-    if device_controller is None:
-        return
     try:
         payload = json.loads(message.payload.decode("utf-8"))
     except json.JSONDecodeError:
+        publish_event(client, "command_error", {"message": "JSON xato"})
         return
 
     try:
         device = payload.get("device")
         enabled = bool(payload.get("enabled", False))
-        snapshot = device_controller.set_device(device, enabled, payload.get("source", "mqtt"))
-        print(f"📩 Buyruq qabul qilindi: {device} -> {'ON' if enabled else 'OFF'}")
+        if manual_switches.is_forcing_on(device) and not enabled:
+            publish_event(
+                client,
+                "manual_override",
+                {"device": device, "message": "Manual switch yoqilgan, sayt buyrug'i o'tkazilmadi."},
+            )
+            publish_state(client, "manual_override")
+            return
 
-        state_payload = {
-            "devices": snapshot["devices"],
-            "source": "command",
-            "command": snapshot.get("command"),
-            "timestamp": now_iso(),
-        }
-        client.publish(f"{base_topic()}/state", json.dumps(state_payload), qos=0)
+        snapshot = device_controller.set_device(
+            device,
+            enabled,
+            payload.get("source", "mqtt"),
+        )
+        publish_state(client, "command", snapshot.get("command"))
     except ValueError as error:
-        print(f"❌ Buyruq xato: {error}")
+        publish_event(client, "command_error", {"message": str(error), "payload": payload})
 
 
-# ---------- Telemetry ----------
 def publish_telemetry(client):
-    temperature, humidity = read_dht()
-    devices = get_devices()
-
-    if temperature is not None and humidity is not None:
-        print(f"[{now_iso()}] ✅ YUBORILDI -> Harorat: {temperature}°C, Namlik: {humidity}%")
+    sensors = sensor_service.current()
+    devices = device_controller.snapshot()["devices"]
+    lcd.update(sensors, devices)
+    
+    temp = sensors.get("temperature")
+    hum = sensors.get("humidity")
+    if temp is None or hum is None:
+        print(f"[{now_iso()}] ⚠️ DIQQAT: Datchikdan signal yo'q! (Simlarni yoki DHT turini tekshiring)")
     else:
-        print(f"[{now_iso()}] ⚠️ DIQQAT: Datchikdan signal yo'q!")
-
+        print(f"[{now_iso()}] ✅ YUBORILDI -> Harorat: {temp}°C, Namlik: {hum}%")
+        
     payload = {
-        "temperature": round(temperature, 1) if temperature is not None else None,
-        "humidity": round(humidity) if humidity is not None else None,
-        "soilMoisture": None,
-        "light": None,
-        "gasLevel": None,
-        "gasDetected": False,
-        "weather": {
-            "condition": "MQTT IoT telemetriya",
-            "outsideTemp": round(temperature, 1) if temperature is not None else None,
-            "wind": 0,
-            "uv": 0,
-        },
+        **sensors,
         "devices": devices,
+        "manualSwitchesAvailable": manual_switches.available,
+        "irAvailable": ir_reader.available,
+        "lcdAvailable": lcd.available,
         "source": "raspberry-pi",
         "timestamp": now_iso(),
     }
     client.publish(f"{base_topic()}/telemetry", json.dumps(payload), qos=0)
 
 
-# ---------- Automation ----------
-def run_automation(client, temperature):
-    if not Config.PI_AUTOMATION_ENABLED or device_controller is None:
-        return
-    if temperature is None:
-        return
+def publish_state(client, source, command=None):
+    payload = {
+        "devices": device_controller.snapshot()["devices"],
+        "source": source,
+        "command": command,
+        "timestamp": now_iso(),
+    }
+    client.publish(f"{base_topic()}/state", json.dumps(payload), qos=0)
 
-    changes = {}
-    if temperature > Config.PI_TEMPERATURE_LIMIT:
-        changes["cooler_1"] = True
-    else:
-        changes["cooler_1"] = False
 
-    if temperature > Config.PI_TEMPERATURE_LIMIT + 1:
-        changes["cooler_2"] = True
-    else:
-        changes["cooler_2"] = False
+def publish_event(client, event, data=None):
+    payload = {
+        "event": event,
+        "data": data or {},
+        "timestamp": now_iso(),
+    }
+    client.publish(f"{base_topic()}/event", json.dumps(payload), qos=0)
 
-    for device, enabled in changes.items():
-        current = get_devices().get(device)
-        if current == enabled:
+
+def automation_state(sensors):
+    if not Config.PI_AUTOMATION_ENABLED:
+        return {}
+
+    temperature = _number(sensors.get("temperature"))
+    soil = _number(sensors.get("soilMoisture"))
+    light = _number(sensors.get("light"))
+    gas_level = _number(sensors.get("gasLevel"))
+    gas_detected = bool(sensors.get("gasDetected"))
+
+    next_state = {}
+    if temperature is not None:
+        next_state["cooler_1"] = temperature > Config.PI_TEMPERATURE_LIMIT
+        next_state["cooler_2"] = temperature > Config.PI_TEMPERATURE_LIMIT + 1
+    if soil is not None:
+        next_state["drip_pump"] = soil < Config.PI_MOISTURE_LIMIT
+        next_state["rain_pump"] = soil < Config.PI_MOISTURE_LIMIT - 12
+    if light is not None:
+        next_state["photo_led"] = light < Config.PI_LIGHT_LIMIT
+        next_state["insect_led"] = light < Config.PI_LIGHT_LIMIT
+    if gas_detected or (gas_level is not None and gas_level >= Config.PI_GAS_DANGER_LIMIT):
+        next_state["cooler_1"] = True
+        next_state["cooler_2"] = True
+        next_state["photo_led"] = False
+        next_state["insect_led"] = False
+
+    return next_state
+
+
+def run_local_automation(client, sensors):
+    for device, enabled in automation_state(sensors).items():
+        before = device_controller.snapshot()["devices"].get(device)
+        if before == enabled:
             continue
+
         snapshot = device_controller.set_device(device, enabled, "auto")
         command = snapshot.get("command") or {}
-        if not command.get("ignored"):
-            state_payload = {
-                "devices": snapshot["devices"],
-                "source": "auto",
-                "command": command,
-                "timestamp": now_iso(),
-            }
-            client.publish(f"{base_topic()}/state", json.dumps(state_payload), qos=0)
-            print(f"🤖 Avtomatika: {device} -> {'ON' if enabled else 'OFF'}")
+        if before != snapshot["devices"].get(device) and not command.get("ignored"):
+            publish_state(client, "auto", command)
 
 
-# ---------- Main ----------
+def handle_manual_switches(client):
+    changes = manual_switches.read_changes()
+    for device, enabled in changes.items():
+        snapshot = device_controller.set_device(device, enabled, "manual")
+        publish_state(client, "manual", snapshot.get("command"))
+        publish_event(client, "manual_switch", {"device": device, "enabled": enabled})
+
+
+def handle_ir(client):
+    event = ir_reader.read_event()
+    if event:
+        publish_event(client, "ir_signal", event)
+
+
+def _number(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def stop(_signum, _frame):
     global running
     running = False
@@ -201,15 +198,8 @@ def create_client():
 
 def main():
     if not Config.MQTT_ENABLED:
-        print("❌ MQTT_ENABLED=true qilib ishga tushiring.")
+        print("MQTT_ENABLED=true qilib ishga tushiring.")
         return 1
-
-    print("🚀 SmartFarm Pi Gateway ishga tushmoqda...")
-    print(f"   MQTT Server: {Config.MQTT_HOST}:{Config.MQTT_PORT}")
-    print(f"   DHT Sensor:  {Config.DHT_SENSOR}")
-    print(f"   DHT Pin:     GPIO{Config.DHT_PIN}")
-    print(f"   Greenhouse:  {Config.MQTT_GREENHOUSE_ID}")
-    print()
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
@@ -221,17 +211,17 @@ def main():
 
     try:
         while running:
-            temperature, humidity = read_dht()
+            handle_manual_switches(client)
+            handle_ir(client)
+            sensors = sensor_service.current()
+            run_local_automation(client, sensors)
+            lcd.update(sensors, device_controller.snapshot()["devices"])
             publish_telemetry(client)
-            run_automation(client, temperature)
             time.sleep(Config.SENSOR_BROADCAST_SECONDS)
     finally:
         client.publish(f"{base_topic()}/availability", "offline", qos=1, retain=True)
         client.loop_stop()
         client.disconnect()
-        if dht_sensor:
-            dht_sensor.exit()
-        print("👋 Pi Gateway to'xtatildi.")
 
     return 0
 

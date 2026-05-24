@@ -30,10 +30,11 @@ class SensorService:
             sensor_name = Config.DHT_SENSOR.upper()
             pin_attr = f"D{Config.DHT_PIN}"
             pin = getattr(board, pin_attr, board.D4)
-            self.dht = adafruit_dht.DHT22(pin) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin)
+            self.dht = adafruit_dht.DHT22(pin, use_pulseio=False) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin, use_pulseio=False)
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.MQ2_DIGITAL_PIN, GPIO.IN)
+            GPIO.setup(Config.SOIL_DIGITAL_PIN, GPIO.IN)
             self.gpio = GPIO
             self.spi = spidev.SpiDev()
             self.spi.open(0, 0)
@@ -119,16 +120,22 @@ class SensorService:
             temperature = None
 
         soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL)
+        soil_digital = self.gpio.input(Config.SOIL_DIGITAL_PIN) if self.gpio else 1
         mq2_raw = self._read_adc(Config.MQ2_ADC_CHANNEL)
         light_digital = self.gpio.input(Config.LIGHT_DIGITAL_PIN) if self.gpio else Config.LIGHT_DARK_SIGNAL
         mq2_digital = self.gpio.input(Config.MQ2_DIGITAL_PIN) if self.gpio else 1 - Config.MQ2_DANGER_SIGNAL
         is_dark = int(light_digital) == Config.LIGHT_DARK_SIGNAL
         gas_detected = int(mq2_digital) == Config.MQ2_DANGER_SIGNAL
 
+        # Use analog if MCP3008 is connected, otherwise fallback to DO pin (0 = wet, 1 = dry)
+        soil_moisture = self._soil_percent(soil_raw)
+        if soil_raw is None or soil_raw == 0:
+            soil_moisture = 100 if int(soil_digital) == 0 else 0
+
         return {
             "temperature": round(temperature, 1) if temperature is not None else None,
             "humidity": round(humidity) if humidity is not None else None,
-            "soilMoisture": self._soil_percent(soil_raw),
+            "soilMoisture": soil_moisture,
             "light": 80 if is_dark else 850,
             "lightDigital": int(light_digital),
             "isDark": is_dark,

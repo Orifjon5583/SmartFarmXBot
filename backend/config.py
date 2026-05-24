@@ -119,6 +119,7 @@ class Config:
     LIGHT_DIGITAL_PIN = int(os.getenv("LIGHT_DIGITAL_PIN", "23"))
     LIGHT_DARK_SIGNAL = int(os.getenv("LIGHT_DARK_SIGNAL", "1"))
     MQ2_DIGITAL_PIN = int(os.getenv("MQ2_DIGITAL_PIN", "24"))
+    SOIL_DIGITAL_PIN = int(os.getenv("SOIL_DIGITAL_PIN", "21"))
     MQ2_DANGER_SIGNAL = int(os.getenv("MQ2_DANGER_SIGNAL", "0"))
     SOIL_ADC_CHANNEL = int(os.getenv("SOIL_ADC_CHANNEL", "0"))
     LIGHT_ADC_CHANNEL = int(os.getenv("LIGHT_ADC_CHANNEL", "1"))
