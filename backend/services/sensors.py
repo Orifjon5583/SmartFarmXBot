@@ -22,7 +22,10 @@ class SensorService:
             self._setup_real_sensors()
 
     def _setup_real_sensors(self):
-        # Step 1: DHT sensor (independent - must work even without SPI)
+        # Step 1: DHT sensor - try multiple methods
+        self._dht_mode = None
+
+        # Method 1: Try adafruit_dht (works if libgpiod v2 is available)
         try:
             import adafruit_dht
             import board
@@ -30,12 +33,30 @@ class SensorService:
             sensor_name = Config.DHT_SENSOR.upper()
             pin_attr = f"D{Config.DHT_PIN}"
             pin = getattr(board, pin_attr, board.D4)
-            self.dht = adafruit_dht.DHT22(pin) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin)
+            self.dht = adafruit_dht.DHT22(pin, use_pulseio=False) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin, use_pulseio=False)
+            # Test read
+            _ = self.dht.temperature
+            self._dht_mode = "adafruit"
             self.real_sensors_available = True
-            print(f"✅ DHT datchik sozlandi: {sensor_name}, pin: GPIO{Config.DHT_PIN}")
-        except Exception as e:
-            print(f"⚠️ DHT sensor xato: {e}")
-            self.real_sensors_available = False
+            print(f"✅ DHT datchik sozlandi (adafruit): {sensor_name}, pin: GPIO{Config.DHT_PIN}")
+        except Exception as e1:
+            # Method 2: Try without use_pulseio
+            try:
+                import adafruit_dht
+                import board
+                sensor_name = Config.DHT_SENSOR.upper()
+                pin_attr = f"D{Config.DHT_PIN}"
+                pin = getattr(board, pin_attr, board.D4)
+                self.dht = adafruit_dht.DHT22(pin) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin)
+                _ = self.dht.temperature
+                self._dht_mode = "adafruit"
+                self.real_sensors_available = True
+                print(f"✅ DHT datchik sozlandi (adafruit pulseio): {sensor_name}, pin: GPIO{Config.DHT_PIN}")
+            except Exception as e2:
+                # Method 3: Use subprocess with pigpio
+                self._dht_mode = "subprocess"
+                self.real_sensors_available = True
+                print(f"⚠️ adafruit ishlamadi ({e1}), subprocess rejimiga o'tildi")
 
         # Step 2: GPIO digital pins (independent from SPI)
         try:
@@ -131,12 +152,20 @@ class SensorService:
 
     def _read_real_sensors(self):
         # DHT reading
-        try:
-            humidity = self.dht.humidity
-            temperature = self.dht.temperature
-        except Exception:
-            humidity = None
-            temperature = None
+        temperature = None
+        humidity = None
+
+        if self._dht_mode == "adafruit" and self.dht:
+            try:
+                humidity = self.dht.humidity
+                temperature = self.dht.temperature
+            except Exception:
+                pass
+        elif self._dht_mode == "subprocess":
+            try:
+                temperature, humidity = self._read_dht_subprocess()
+            except Exception:
+                pass
 
         # SPI ADC reading (only if MCP3008 available)
         soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL) if self.spi_available else None
@@ -188,6 +217,49 @@ class SensorService:
             return ((response[1] & 3) << 8) + response[2]
         except Exception:
             return None
+
+    @staticmethod
+    def _read_dht_subprocess():
+        """Read DHT via separate process - avoids libgpiod conflicts."""
+        import subprocess
+        import json as _json
+
+        sensor_name = Config.DHT_SENSOR.upper()
+        pin = Config.DHT_PIN
+
+        # Simple script that reads DHT and prints JSON
+        script = f"""
+import json, sys
+try:
+    import adafruit_dht, board
+    d = adafruit_dht.{sensor_name}(board.D{pin}, use_pulseio=False)
+    t = d.temperature
+    h = d.humidity
+    d.exit()
+    print(json.dumps({{"t": t, "h": h}}))
+except:
+    try:
+        import adafruit_dht, board
+        d = adafruit_dht.{sensor_name}(board.D{pin})
+        t = d.temperature
+        h = d.humidity
+        d.exit()
+        print(json.dumps({{"t": t, "h": h}}))
+    except Exception as e:
+        print(json.dumps({{"t": None, "h": None, "e": str(e)}}))
+"""
+        result = subprocess.run(
+            ["python3", "-c", script],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            return None, None
+
+        try:
+            data = _json.loads(result.stdout.strip())
+            return data.get("t"), data.get("h")
+        except Exception:
+            return None, None
 
     @staticmethod
     def _light_lux_estimate(raw_value):
