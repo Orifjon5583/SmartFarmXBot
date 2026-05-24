@@ -126,3 +126,7 @@ class Config:
     MQ2_ADC_CHANNEL = int(os.getenv("MQ2_ADC_CHANNEL", "2"))
     SOIL_DRY_VALUE = int(os.getenv("SOIL_DRY_VALUE", "850"))
     SOIL_WET_VALUE = int(os.getenv("SOIL_WET_VALUE", "350"))
+
+    # Direct LED strip control (not via relay)
+    LED_STRIP_PIN = int(os.getenv("LED_STRIP_PIN", "18"))
+    LED_STRIP_ENABLED = os.getenv("LED_STRIP_ENABLED", "true").lower() == "true"

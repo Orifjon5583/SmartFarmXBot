@@ -20,6 +20,20 @@ ir_reader = IrEventReader()
 lcd = Lcd16x2()
 running = True
 
+# LED strip direct control
+led_strip_gpio = None
+led_strip_state = False
+if Config.LED_STRIP_ENABLED:
+    try:
+        import RPi.GPIO as _GPIO
+        _GPIO.setmode(_GPIO.BCM)
+        _GPIO.setup(Config.LED_STRIP_PIN, _GPIO.OUT)
+        _GPIO.output(Config.LED_STRIP_PIN, _GPIO.LOW)
+        led_strip_gpio = _GPIO
+        print(f"✅ LED strip sozlandi: GPIO{Config.LED_STRIP_PIN}")
+    except Exception as e:
+        print(f"⚠️ LED strip xato: {e}")
+
 
 def base_topic():
     return f"{Config.MQTT_TOPIC_PREFIX}/{Config.MQTT_GREENHOUSE_ID}"
@@ -171,6 +185,25 @@ def handle_ir(client):
         publish_event(client, "ir_signal", event)
 
 
+def update_led_strip(sensors):
+    """Turn LED strip ON when dark, OFF when light."""
+    global led_strip_state
+
+    if not led_strip_gpio or not Config.LED_STRIP_ENABLED:
+        return
+
+    is_dark = sensors.get("isDark", False)
+
+    if is_dark and not led_strip_state:
+        led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.HIGH)
+        led_strip_state = True
+        print(f"[{now_iso()}] 💡 LED yoqildi (qorong'i)")
+    elif not is_dark and led_strip_state:
+        led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.LOW)
+        led_strip_state = False
+        print(f"[{now_iso()}] 🌙 LED o'chirildi (yorug')")
+
+
 def _number(value):
     try:
         return float(value)
@@ -221,10 +254,13 @@ def main():
             handle_ir(client)
             sensors = sensor_service.current()
             run_local_automation(client, sensors)
+            update_led_strip(sensors)
             lcd.update(sensors, device_controller.snapshot()["devices"])
             publish_telemetry(client)
             time.sleep(Config.SENSOR_BROADCAST_SECONDS)
     finally:
+        if led_strip_gpio:
+            led_strip_gpio.output(Config.LED_STRIP_PIN, led_strip_gpio.LOW)
         client.publish(f"{base_topic()}/availability", "offline", qos=1, retain=True)
         client.loop_stop()
         client.disconnect()
