@@ -24,8 +24,13 @@ class SensorService:
         try:
             import RPi.GPIO as GPIO
             import spidev
+            import adafruit_dht
+            import board
 
-            self._init_dht_sensor()
+            sensor_name = Config.DHT_SENSOR.upper()
+            pin_attr = f"D{Config.DHT_PIN}"
+            pin = getattr(board, pin_attr, board.D4)
+            self.dht = adafruit_dht.DHT22(pin, use_pulseio=False) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin, use_pulseio=False)
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.MQ2_DIGITAL_PIN, GPIO.IN)
@@ -35,45 +40,9 @@ class SensorService:
             self.spi.open(0, 0)
             self.spi.max_speed_hz = 1350000
             self.real_sensors_available = True
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ Sensor setup xato: {e}")
             self.real_sensors_available = False
-
-    def _init_dht_sensor(self):
-        """Initialize DHT sensor with multiple fallback strategies."""
-        import adafruit_dht
-        import board
-
-        sensor_name = Config.DHT_SENSOR.upper()
-        pin_attr = f"D{Config.DHT_PIN}"
-        pin = getattr(board, pin_attr, board.D4)
-
-        # Strategy 1: use_pulseio=False (bypasses broken libgpiod)
-        try:
-            if sensor_name == "DHT22":
-                self.dht = adafruit_dht.DHT22(pin, use_pulseio=False)
-            else:
-                self.dht = adafruit_dht.DHT11(pin, use_pulseio=False)
-            # Test read to verify it actually works
-            _ = self.dht.temperature
-            return
-        except Exception:
-            pass
-
-        # Strategy 2: without use_pulseio (uses libgpiod/pulseio)
-        try:
-            if sensor_name == "DHT22":
-                self.dht = adafruit_dht.DHT22(pin)
-            else:
-                self.dht = adafruit_dht.DHT11(pin)
-            return
-        except Exception:
-            pass
-
-        # Strategy 3: force use_pulseio=False without test read
-        if sensor_name == "DHT22":
-            self.dht = adafruit_dht.DHT22(pin, use_pulseio=False)
-        else:
-            self.dht = adafruit_dht.DHT11(pin, use_pulseio=False)
 
     def current(self):
         if self.external_snapshot is not None:
@@ -144,23 +113,12 @@ class SensorService:
         }
 
     def _read_real_sensors(self):
-        temperature = None
-        humidity = None
-
-        # Try adafruit_dht first
-        if self.dht:
-            try:
-                humidity = self.dht.humidity
-                temperature = self.dht.temperature
-            except Exception:
-                pass
-
-        # Fallback: read DHT via subprocess if adafruit failed
-        if temperature is None or humidity is None:
-            try:
-                temperature, humidity = self._read_dht_subprocess()
-            except Exception:
-                pass
+        try:
+            humidity = self.dht.humidity
+            temperature = self.dht.temperature
+        except Exception:
+            humidity = None
+            temperature = None
 
         soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL)
         soil_digital = self.gpio.input(Config.SOIL_DIGITAL_PIN) if self.gpio else 1
@@ -170,7 +128,7 @@ class SensorService:
         is_dark = int(light_digital) == Config.LIGHT_DARK_SIGNAL
         gas_detected = int(mq2_digital) == Config.MQ2_DANGER_SIGNAL
 
-        # Use analog if MCP3008 is connected, otherwise fallback to DO pin (0 = wet, 1 = dry)
+        # Use analog if MCP3008 is connected, otherwise fallback to DO pin
         soil_moisture = self._soil_percent(soil_raw)
         if soil_raw is None or soil_raw == 0:
             soil_moisture = 100 if int(soil_digital) == 0 else 0
@@ -200,30 +158,6 @@ class SensorService:
 
         response = self.spi.xfer2([1, (8 + channel) << 4, 0])
         return ((response[1] & 3) << 8) + response[2]
-
-    @staticmethod
-    def _read_dht_subprocess():
-        """Read DHT sensor via subprocess - bypasses libgpiod issues completely."""
-        import subprocess
-        import json as _json
-
-        sensor_name = Config.DHT_SENSOR.upper()
-        pin = Config.DHT_PIN
-        script = (
-            f"import adafruit_dht, board, json; "
-            f"d = adafruit_dht.{sensor_name}(board.D{pin}, use_pulseio=False); "
-            f"print(json.dumps({{'t': d.temperature, 'h': d.humidity}})); "
-            f"d.exit()"
-        )
-        result = subprocess.run(
-            ["python3", "-c", script],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode != 0:
-            return None, None
-
-        data = _json.loads(result.stdout.strip())
-        return data.get("t"), data.get("h")
 
     @staticmethod
     def _light_lux_estimate(raw_value):
