@@ -16,14 +16,14 @@ class SensorService:
         self.dht = None
         self.spi = None
         self.gpio = None
+        self.spi_available = False
 
         if Config.USE_REAL_SENSORS:
             self._setup_real_sensors()
 
     def _setup_real_sensors(self):
+        # Step 1: DHT sensor (independent - must work even without SPI)
         try:
-            import RPi.GPIO as GPIO
-            import spidev
             import adafruit_dht
             import board
 
@@ -31,18 +31,35 @@ class SensorService:
             pin_attr = f"D{Config.DHT_PIN}"
             pin = getattr(board, pin_attr, board.D4)
             self.dht = adafruit_dht.DHT22(pin, use_pulseio=False) if sensor_name == "DHT22" else adafruit_dht.DHT11(pin, use_pulseio=False)
+            self.real_sensors_available = True
+            print(f"✅ DHT datchik sozlandi: {sensor_name}, pin: GPIO{Config.DHT_PIN}")
+        except Exception as e:
+            print(f"⚠️ DHT sensor xato: {e}")
+            self.real_sensors_available = False
+
+        # Step 2: GPIO digital pins (independent from SPI)
+        try:
+            import RPi.GPIO as GPIO
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(Config.LIGHT_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.MQ2_DIGITAL_PIN, GPIO.IN)
             GPIO.setup(Config.SOIL_DIGITAL_PIN, GPIO.IN)
             self.gpio = GPIO
+            print(f"✅ GPIO digital pinlar sozlandi")
+        except Exception as e:
+            print(f"⚠️ GPIO digital pin xato (davom etamiz): {e}")
+
+        # Step 3: SPI / MCP3008 ADC (optional - works without it)
+        try:
+            import spidev
             self.spi = spidev.SpiDev()
             self.spi.open(0, 0)
             self.spi.max_speed_hz = 1350000
-            self.real_sensors_available = True
+            self.spi_available = True
+            print(f"✅ SPI/MCP3008 ADC sozlandi")
         except Exception as e:
-            print(f"⚠️ Sensor setup xato: {e}")
-            self.real_sensors_available = False
+            self.spi_available = False
+            print(f"⚠️ SPI/MCP3008 mavjud emas (davom etamiz): {e}")
 
     def current(self):
         if self.external_snapshot is not None:
@@ -113,6 +130,7 @@ class SensorService:
         }
 
     def _read_real_sensors(self):
+        # DHT reading
         try:
             humidity = self.dht.humidity
             temperature = self.dht.temperature
@@ -120,18 +138,25 @@ class SensorService:
             humidity = None
             temperature = None
 
-        soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL)
+        # SPI ADC reading (only if MCP3008 available)
+        soil_raw = self._read_adc(Config.SOIL_ADC_CHANNEL) if self.spi_available else None
+        mq2_raw = self._read_adc(Config.MQ2_ADC_CHANNEL) if self.spi_available else None
+
+        # Digital GPIO reading
         soil_digital = self.gpio.input(Config.SOIL_DIGITAL_PIN) if self.gpio else 1
-        mq2_raw = self._read_adc(Config.MQ2_ADC_CHANNEL)
         light_digital = self.gpio.input(Config.LIGHT_DIGITAL_PIN) if self.gpio else Config.LIGHT_DARK_SIGNAL
         mq2_digital = self.gpio.input(Config.MQ2_DIGITAL_PIN) if self.gpio else 1 - Config.MQ2_DANGER_SIGNAL
         is_dark = int(light_digital) == Config.LIGHT_DARK_SIGNAL
         gas_detected = int(mq2_digital) == Config.MQ2_DANGER_SIGNAL
 
-        # Use analog if MCP3008 is connected, otherwise fallback to DO pin
-        soil_moisture = self._soil_percent(soil_raw)
-        if soil_raw is None or soil_raw == 0:
+        # Soil moisture: prefer analog, fallback to digital
+        if self.spi_available and soil_raw is not None and soil_raw > 0:
+            soil_moisture = self._soil_percent(soil_raw)
+        else:
             soil_moisture = 100 if int(soil_digital) == 0 else 0
+
+        # Gas level: prefer analog, fallback to digital
+        gas_level = self._gas_percent(mq2_raw) if self.spi_available and mq2_raw is not None else (80 if gas_detected else 5)
 
         return {
             "temperature": round(temperature, 1) if temperature is not None else None,
@@ -140,7 +165,7 @@ class SensorService:
             "light": 80 if is_dark else 850,
             "lightDigital": int(light_digital),
             "isDark": is_dark,
-            "gasLevel": self._gas_percent(mq2_raw),
+            "gasLevel": gas_level,
             "gasDetected": gas_detected,
             "mq2Raw": mq2_raw,
             "mq2Digital": int(mq2_digital),
@@ -153,11 +178,16 @@ class SensorService:
         }
 
     def _read_adc(self, channel):
+        if not self.spi_available or not self.spi:
+            return None
         if channel < 0 or channel > 7:
-            raise ValueError("MCP3008 kanali 0 dan 7 gacha bo'lishi kerak")
+            return None
 
-        response = self.spi.xfer2([1, (8 + channel) << 4, 0])
-        return ((response[1] & 3) << 8) + response[2]
+        try:
+            response = self.spi.xfer2([1, (8 + channel) << 4, 0])
+            return ((response[1] & 3) << 8) + response[2]
+        except Exception:
+            return None
 
     @staticmethod
     def _light_lux_estimate(raw_value):
@@ -202,6 +232,7 @@ class SensorService:
             "database": self.history_store.status(),
             "uptime": f"{hours} soat {minutes} daqiqa",
             "sensorMode": "real" if self.real_sensors_available else "kutish",
+            "spiAvailable": self.spi_available,
             "telemetrySource": "mqtt" if self.external_snapshot is not None else "hech narsa",
             "telemetryUpdatedAt": self.external_updated_at.isoformat(timespec="seconds")
             if self.external_updated_at
