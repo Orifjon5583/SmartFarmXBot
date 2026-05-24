@@ -79,7 +79,11 @@ def publish_telemetry(client):
     if temp is None or hum is None:
         print(f"[{now_iso()}] ⚠️ DIQQAT: Datchikdan signal yo'q! (Simlarni yoki DHT turini tekshiring)")
     else:
-        print(f"[{now_iso()}] ✅ YUBORILDI -> Harorat: {temp}°C, Namlik: {hum}%")
+        light_val = sensors.get("light", "?")
+        gas_val = sensors.get("gasLevel", "?")
+        gas_det = "⚠️GAZ" if sensors.get("gasDetected") else "ok"
+        soil_val = sensors.get("soilMoisture", "?")
+        print(f"[{now_iso()}] ✅ YUBORILDI -> Harorat: {temp}°C, Namlik: {hum}%, Yorug'lik: {light_val}, Gaz: {gas_val}%({gas_det}), Tuproq: {soil_val}%")
         
     payload = {
         **sensors,
