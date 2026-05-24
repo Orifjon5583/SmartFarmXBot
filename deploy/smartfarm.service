@@ -1,0 +1,15 @@
+[Unit]
+Description=SmartFarm Pi Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/smartfarm/smartfarm
+ExecStart=/home/smartfarm/smartfarm/venv/bin/python3 -m backend.pi_gateway
+Restart=always
+RestartSec=5
+Environment=PATH=/home/smartfarm/smartfarm/venv/bin:/usr/bin
+
+[Install]
+WantedBy=multi-user.target
