@@ -11,8 +11,10 @@ from backend.services.pi_hardware import IrEventReader, Lcd16x2, ManualSwitchRea
 from backend.services.sensors import SensorService
 
 
-device_controller = DeviceController()
+# IMPORTANT: SensorService must init BEFORE DeviceController
+# because adafruit_dht and RPi.GPIO conflict on GPIO chip access
 sensor_service = SensorService()
+device_controller = DeviceController()
 manual_switches = ManualSwitchReader()
 ir_reader = IrEventReader()
 lcd = Lcd16x2()
