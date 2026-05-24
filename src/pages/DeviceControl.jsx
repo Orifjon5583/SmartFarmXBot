@@ -1,4 +1,4 @@
-import { Bug, CloudRain, Droplets, Fan, Lightbulb, Power, RadioTower } from 'lucide-react';
+import { CloudRain, Droplets, Fan, Lightbulb, Power, RadioTower } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DeviceSwitch from '../components/DeviceSwitch.jsx';
 import { useGreenhouse } from '../context/GreenhouseContext.jsx';
@@ -10,7 +10,7 @@ export default function DeviceControl() {
     { key: 'drip_pump', label: "Tomchilatib nasos", description: "Tuproq namligi past bo'lsa ishlaydigan nasos", icon: Droplets },
     { key: 'rain_pump', label: "Yomg'irlatib nasos", description: "Kuchli sug'orish uchun alohida nasos", icon: CloudRain },
     { key: 'photo_led', label: 'Fotosintez LED', description: "Fotorezistor qorong'ilikni aniqlasa yonadi", icon: Lightbulb },
-    { key: 'insect_led', label: 'Hashorat LED', description: "Hashoratlarni yo'q qilish uchun alohida chiroq", icon: Bug },
+    { key: 'insect_led', label: 'Matrix LED', description: "WS2812B LED lenta - qorong'ilikda avtomatik yonadi", icon: Lightbulb },
     { key: 'cooler_1', label: 'Kuler 1', description: 'Harorat yuqori bo‘lsa ventilyatsiya', icon: Fan },
     { key: 'cooler_2', label: 'Kuler 2', description: 'Qo‘shimcha ventilyatsiya', icon: Fan },
   ];

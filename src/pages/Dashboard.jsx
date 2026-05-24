@@ -56,7 +56,7 @@ export default function Dashboard() {
                       drip_pump: 'tomchilatib nasos',
                       rain_pump: "yomg'irlatib nasos",
                       photo_led: 'fotosintez LED',
-                      insect_led: 'hashorat LED',
+                      insect_led: 'matrix LED',
                       cooler_1: 'kuler 1',
                       cooler_2: 'kuler 2',
                     }[device] || device}
