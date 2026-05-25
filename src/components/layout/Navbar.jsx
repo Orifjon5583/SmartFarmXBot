@@ -1,11 +1,10 @@
 import { Bell, Download, LogOut, Menu, RefreshCw, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useGreenhouse } from '../../context/GreenhouseContext.jsx';
 import { usePwaInstall } from '../../hooks/usePwaInstall.js';
 
-export default function Navbar() {
+export default function Navbar({ onMenuClick }) {
   const { user, logout } = useAuth();
   const { refresh, status } = useGreenhouse();
   const { canInstall, install, isInstalled } = usePwaInstall();
@@ -13,10 +12,10 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-night/72 px-4 py-4 backdrop-blur-2xl sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-3 lg:hidden">
+        <button onClick={onMenuClick} className="flex items-center gap-3 lg:hidden">
           <Menu className="h-5 w-5 text-cyber-green" />
           <span className="font-display font-bold">Issiqxona Nexus</span>
-        </Link>
+        </button>
         <div className="hidden min-w-0 lg:block">
           <p className="text-xs uppercase tracking-[0.3em] text-cyber-blue">Sanoat issiqxonasi boshqaruvi</p>
           <h1 className="truncate font-display text-2xl font-bold text-white">Aqlli Issiqxona Boshqaruv Markazi</h1>

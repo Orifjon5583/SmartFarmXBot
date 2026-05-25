@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Camera, LayoutDashboard, Leaf, Settings, SlidersHorizontal } from 'lucide-react';
+import { Activity, BarChart3, Camera, LayoutDashboard, Leaf, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const links = [
@@ -9,17 +9,24 @@ const links = [
   { to: '/settings', label: 'Sozlamalar', icon: Settings },
 ];
 
-export default function Sidebar() {
+function SidebarContent({ onClose }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-white/10 bg-night/80 px-4 py-5 backdrop-blur-2xl lg:block">
-      <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyber-green/30 bg-cyber-green/10 shadow-neon">
-          <Leaf className="h-6 w-6 text-cyber-green" />
+    <>
+      <div className="mb-8 flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyber-green/30 bg-cyber-green/10 shadow-neon">
+            <Leaf className="h-6 w-6 text-cyber-green" />
+          </div>
+          <div>
+            <p className="font-display text-lg font-bold tracking-wide text-white">Issiqxona Nexus</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-cyber-blue">Raspberry Pi IoT</p>
+          </div>
         </div>
-        <div>
-          <p className="font-display text-lg font-bold tracking-wide text-white">Issiqxona Nexus</p>
-          <p className="text-xs uppercase tracking-[0.22em] text-cyber-blue">Raspberry Pi IoT</p>
-        </div>
+        {onClose && (
+          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden">
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       <nav className="space-y-2">
@@ -28,6 +35,7 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={to === '/'}
+            onClick={onClose}
             className={({ isActive }) =>
               `group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
                 isActive
@@ -52,6 +60,27 @@ export default function Sidebar() {
         </div>
         <p className="mt-3 text-xs text-slate-400">Qoidalar tizimi faol, rele kechikishi 32ms.</p>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function Sidebar({ open, onClose }) {
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-white/10 bg-night/80 px-4 py-5 backdrop-blur-2xl lg:block">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile sidebar overlay */}
+      {open && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+          <aside className="fixed inset-y-0 left-0 z-50 w-72 border-r border-white/10 bg-night px-4 py-5">
+            <SidebarContent onClose={onClose} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
